@@ -1,6 +1,10 @@
-import pytest
+import os
+os.environ["FLASK_TESTING"] = "1"
+
 from io import BytesIO
+import pytest
 from app import app
+
 
 
 @pytest.fixture
