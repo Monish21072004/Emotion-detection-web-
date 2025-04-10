@@ -4,18 +4,18 @@ A deep learning-based web application that detects and classifies human emotions
 
 ---
 
-## 📌 Features
+## Features
 
-- 🎯 Real-time emotion detection from webcam feed
-- 🖼️ Emotion detection from uploaded images
-- 🧠 CNN-based emotion classifier trained on facial expression data
-- 📊 Interactive training history and confusion matrix plots
-- 🖥️ Web-based interface built with Flask
-- 💬 Supports 7 emotions: `angry`, `disgusted`, `fearful`, `happy`, `neutral`, `sad`, and `surprised`
+- Real-time emotion detection from webcam feed
+- Emotion detection from uploaded images
+- CNN-based emotion classifier trained on facial expression data
+- Interactive training history and confusion matrix plots
+- Web-based interface built with Flask
+- Supports 7 emotions: `angry`, `disgusted`, `fearful`, `happy`, `neutral`, `sad`, and `surprised`
 
 ---
 
-## 🧠 Emotion Labels
+## Emotion Labels
 
 | Label Index | Emotion     |
 |-------------|-------------|
@@ -29,7 +29,7 @@ A deep learning-based web application that detects and classifies human emotions
 
 ---
 
-## 🛠️ Technologies Used
+## Technologies Used
 
 - Python
 - Flask
@@ -41,9 +41,9 @@ A deep learning-based web application that detects and classifies human emotions
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
-### 🔧 Prerequisites
+### Prerequisites
 
 Make sure you have the following installed:
 - Python 3.7+
