@@ -3,38 +3,50 @@ import json
 import base64
 import numpy as np
 import cv2
-import tensorflow as tf
 from tensorflow.keras.models import load_model
 from flask import Flask, render_template, request, jsonify
 from io import BytesIO
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
 # Initialize Flask app
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
+
 # Set image dimensions and emotion labels (must match your training)
 IMG_SIZE = 48
-EMOTION_LABELS = ['angry', 'disgusted', 'fearful', 'happy', 'neutral', 'sad', 'surprised']
+EMOTION_LABELS = [
+    'angry', 'disgusted', 'fearful', 'happy', 'neutral', 'sad', 'surprised'
+]
+
 
 # Load the trained model (adjust the model path if needed)
 MODEL_PATH = 'emotion-detect.keras'
 emotion_model = load_model(MODEL_PATH)
 
+
 # Load Haar Cascade for face detection
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+)
+
 
 def preprocess_face(face_img):
     """Resize, normalize, and reshape a face image for prediction."""
     face_resized = cv2.resize(face_img, (IMG_SIZE, IMG_SIZE))
     face_normalized = face_resized / 255.0
-    face_reshaped = np.reshape(face_normalized, (1, IMG_SIZE, IMG_SIZE, 1))
+    face_reshaped = np.reshape(
+        face_normalized, (1, IMG_SIZE, IMG_SIZE, 1)
+    )
     return face_reshaped
+
 
 @app.route('/')
 def index():
     return render_template('trial.html')
+
 
 @app.route('/process_frame', methods=['POST'])
 def process_frame():
@@ -51,7 +63,9 @@ def process_frame():
             return jsonify({'error': 'Failed to decode image'}), 400
 
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.3, minNeighbors=5)
+        faces = face_cascade.detectMultiScale(
+            gray_frame, scaleFactor=1.3, minNeighbors=5
+        )
 
         faces_data = []
         for (x, y, w, h) in faces:
@@ -72,6 +86,7 @@ def process_frame():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/detect', methods=['POST'])
 def detect_emotion():
     if 'file' not in request.files:
@@ -87,7 +102,9 @@ def detect_emotion():
         return jsonify({'error': 'Could not process the image'}), 400
 
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray_image, scaleFactor=1.3, minNeighbors=5)
+    faces = face_cascade.detectMultiScale(
+        gray_image, scaleFactor=1.3, minNeighbors=5
+    )
     detected_emotions = []
 
     for (x, y, w, h) in faces:
@@ -98,14 +115,18 @@ def detect_emotion():
         emotion = EMOTION_LABELS[max_index]
         detected_emotions.append(emotion)
         cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
-        cv2.putText(image, emotion, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.9, (0, 0, 255), 2)
+        cv2.putText(
+            image, emotion, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX,
+            0.9, (0, 0, 255), 2
+        )
 
     retval, buffer = cv2.imencode('.jpg', image)
     jpg_as_text = base64.b64encode(buffer).decode('utf-8')
-    emotion_result = ', '.join(detected_emotions) if detected_emotions else 'No face detected'
+    emotion_result = ', '.join(detected_emotions) if detected_emotions else \
+        'No face detected'
 
     return jsonify({'image': jpg_as_text, 'emotion': emotion_result})
+
 
 @app.route('/plot_training_history', methods=['GET'])
 def plot_training_history():
@@ -116,18 +137,25 @@ def plot_training_history():
     """
     try:
         if not os.path.exists('history.json'):
-            return jsonify({'error': 'Training history file not found.'}), 404
+            return jsonify(
+                {'error': 'Training history file not found.'}
+            ), 404
 
         with open('history.json', 'r') as f:
             history = json.load(f)
 
         # Check for the "epochs" key and extract data
         if "epochs" not in history:
-            return jsonify({'error': 'Training history file structure is incorrect. Expected key "epochs".'}), 400
+            return jsonify({
+                'error': 'Training history file structure is incorrect. '
+                         'Expected key "epochs".'
+            }), 400
 
         epoch_data = history["epochs"]
         if not epoch_data:
-            return jsonify({'error': 'No epoch data found in training history.'}), 400
+            return jsonify({
+                'error': 'No epoch data found in training history.'
+            }), 400
 
         epochs = [entry["epoch"] for entry in epoch_data]
         train_acc = [entry["accuracy"] for entry in epoch_data]
@@ -164,23 +192,31 @@ def plot_training_history():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/plot_confusion_matrix', methods=['GET'])
 def plot_confusion_matrix_endpoint():
     """
     Endpoint to plot the confusion matrix.
-    Loads the confusion matrix from confusion_matrix.json and returns a base64-encoded plot image.
+    Loads the confusion matrix from confusion_matrix.json and returns a
+    base64-encoded plot image.
     """
     try:
         if not os.path.exists('confusion_matrix.json'):
-            return jsonify({'error': 'Confusion matrix file not found.'}), 404
+            return jsonify(
+                {'error': 'Confusion matrix file not found.'}
+            ), 404
 
         with open('confusion_matrix.json', 'r') as f:
             cm_data = json.load(f)
+
         cm = np.array(cm_data['confusion_matrix'])
         labels = cm_data.get('labels', EMOTION_LABELS)
 
         plt.figure(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=labels, yticklabels=labels)
+        sns.heatmap(
+            cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=labels, yticklabels=labels
+        )
         plt.title('Confusion Matrix')
         plt.xlabel('Predicted')
         plt.ylabel('True')
@@ -195,6 +231,7 @@ def plot_confusion_matrix_endpoint():
         return jsonify({'plot': plot_data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     # Run the Flask app; remove debug=True in production
