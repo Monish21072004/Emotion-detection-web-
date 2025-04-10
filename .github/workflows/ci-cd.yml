@@ -25,7 +25,6 @@ jobs:
 
       - name: Run Tests
         run: |
-          # Replace with your test command; for example:
           pytest --maxfail=1 --disable-warnings -q
 
       - name: Setup Docker Buildx
@@ -34,8 +33,8 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}    # Consider renaming your secret for clarity
-          password: ${{ secrets.DOCKER_PASSWORD }}        # Consider renaming your secret for clarity
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v3
@@ -48,19 +47,3 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: monish217/emotion-detect:latest
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    steps:
-      - name: Deploy to AWS EC2 via SSH
-        uses: appleboy/ssh-action@v0.1.6
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            docker pull monish217/emotion-detect:latest
-            docker stop emotion-detect || true
-            docker rm emotion-detect || true
-            docker run -d --restart unless-stopped --name emotion-detect -p 5000:5000 monish217/emotion-detect:latest
