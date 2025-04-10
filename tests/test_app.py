@@ -1,6 +1,10 @@
-import json
+import sys
+import os
+# Ensure the repository root is in the path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import pytest
-from app import app
+from app import app  # Now this import should work correctly
 
 @pytest.fixture
 def client():
