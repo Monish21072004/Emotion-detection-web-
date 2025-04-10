@@ -1,5 +1,4 @@
-# Emotion-detection-web
-# 😃 Real-Time Emotion Detection Web App
+# Real-Time Emotion Detection Web App
 
 A deep learning-based web application that detects and classifies human emotions from facial expressions in real time using OpenCV and TensorFlow. The app supports both image uploads and webcam input, and includes visual tools like training history and a confusion matrix for evaluation.
 
