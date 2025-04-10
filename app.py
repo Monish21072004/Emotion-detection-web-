@@ -1,9 +1,17 @@
 import os
+from tensorflow.keras.models import load_model
+
+if os.environ.get("FLASK_TESTING") == "1":
+    # Load dummy model
+    emotion_model = DummyModel()
+else:
+    # Load actual model
+    emotion_model = load_model('path_to_your_model.h5')
+
 import json
 import base64
 import numpy as np
 import cv2
-from tensorflow.keras.models import load_model
 from flask import Flask, render_template, request, jsonify
 from io import BytesIO
 import matplotlib.pyplot as plt
