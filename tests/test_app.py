@@ -1,4 +1,5 @@
 import pytest
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from app import app  # Ensure that your Flask app is imported from your project file
 
 @pytest.fixture
