@@ -1,6 +1,5 @@
 import pytest
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'Emotion-detection-web-
-/app.py')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'Emotion-detection-web-/app.py')))
 from app import app  # Ensure that your Flask app is imported from your project file
 
 @pytest.fixture
