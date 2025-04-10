@@ -52,6 +52,8 @@ Make sure you have the following installed:
 Install required libraries:
 ```bash
 pip install -r requirements.txt
+
+
 emotion-detection-app/
 │
 ├── app.py                      # Flask backend
@@ -61,6 +63,10 @@ emotion-detection-app/
 ├── templates/
 │   └── trial.html              # Front-end HTML page
 └── uploads/                    # Folder to store uploaded images
+
+
 python app.py
+
+
 http://localhost:5000
 
