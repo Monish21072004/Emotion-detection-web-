@@ -1,10 +1,12 @@
 Flask
+Flask-Cors
+prometheus-flask-exporter
 tensorflow
-opencv-python
 numpy
-matplotlib
 seaborn
+matplotlib
+opencv-python
+python-dotenv
+requests
 pytest
-flake8
-bandit
 gunicorn
