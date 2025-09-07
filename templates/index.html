@@ -3,230 +3,620 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Emotion Detection System</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Emotion Detection // Canvas Interface</title>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;700&display=swap" rel="stylesheet">
   <style>
-      body {
-          background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
-          font-family: 'Arial', sans-serif;
-          min-height: 100vh;
-      }
-      .container {
-          padding: 2rem;
-      }
-      .card {
-          border: none;
-          border-radius: 15px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-          background: rgba(255, 255, 255, 0.9);
-          backdrop-filter: blur(10px);
-      }
-      .btn-custom {
-          background: linear-gradient(135deg, #6a11cb, #2575fc);
-          color: white;
-          border: none;
-          border-radius: 8px;
-          padding: 12px 24px;
-          font-size: 16px;
-          transition: all 0.3s ease;
-          margin: 0.5rem;
-      }
-      .btn-custom:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-      }
-      .video-container {
-          position: relative;
-          width: 100%;
-          max-width: 640px;
-          margin: 2rem auto;
-          border-radius: 15px;
-          overflow: hidden;
-      }
-      #video-feed {
-          width: 100%;
-          transform: scaleX(-1);
-      }
-      #canvas-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          pointer-events: none;
-      }
-      .result-image {
-          max-width: 100%;
-          border-radius: 15px;
-          margin: 1rem 0;
-          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-      }
-      h1 {
-          color: #2c3e50;
-          font-weight: 700;
-          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-      }
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #03070f;
+      font-family: 'Exo 2', sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+    /* Hide elements that are used programmatically */
+    #video-feed, #image-input {
+      display: none;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-      <div class="card p-4">
-          <h1 class="text-center mb-4">🎭 Emotion Detection System</h1>
-          
-          <!-- Video Section -->
-          <div class="text-center">
-              <div class="video-container">
-                  <video id="video-feed" autoplay></video>
-                  <canvas id="canvas-overlay"></canvas>
-              </div>
-              <button class="btn btn-custom" onclick="startWebcam()">🎥 Start Video</button>
-              <button class="btn btn-custom" onclick="stopWebcam()">⏹️ Stop Video</button>
-          </div>
 
-          <!-- Image Upload Section -->
-          <div class="text-center mt-4">
-              <input type="file" id="image-input" accept="image/*" class="form-control mb-3">
-              <button class="btn btn-custom" onclick="detectEmotion()">🖼️ Detect in Image</button>
-          </div>
+  <!-- Hidden video element for webcam stream -->
+  <video id="video-feed" autoplay playsinline></video>
+  
+  <!-- Hidden file input, triggered by canvas button -->
+  <input type="file" id="image-input" accept="image/*">
+  
+  <!-- Sound effect for UI interactions -->
+  <audio id="click-sound" src="https://upload.wikimedia.org/wikipedia/commons/2/27/Button-16.mp3" preload="auto"></audio>
 
-          <!-- Results Section -->
-          <div id="result" class="text-center mt-4">
-              <img id="result-image" class="result-image" src="#" alt="Result" style="display: none;">
-              <h3 id="emotion-result" class="mt-3 text-primary"></h3>
-          </div>
-
-          <!-- Analytics Section -->
-          <div class="text-center mt-4">
-              <button class="btn btn-custom" onclick="plotTrainingHistory()">📈 Training History</button>
-              <button class="btn btn-custom" onclick="plotConfusionMatrix()">📊 Confusion Matrix</button>
-          </div>
-          <div id="plots" class="text-center mt-4"></div>
-      </div>
-  </div>
+  <!-- The canvas where the entire UI is rendered -->
+  <canvas id="ui-canvas"></canvas>
 
   <script>
-      let videoStream;
-      let canvas;
-      let ctx;
+    // --- CANVAS UI RENDERER ---
+    const canvas = document.getElementById('ui-canvas');
+    const ctx = canvas.getContext('2d');
 
-      async function startWebcam() {
-          // Check if browser supports webcam access
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-              alert('Your browser does not support webcam access.');
-              return;
-          }
-          try {
-              videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-              const video = document.getElementById('video-feed');
-              video.srcObject = videoStream;
+    // --- DOM Elements ---
+    const video = document.getElementById('video-feed');
+    const imageInput = document.getElementById('image-input');
+    const clickSound = document.getElementById('click-sound');
 
-              canvas = document.getElementById('canvas-overlay');
-              ctx = canvas.getContext('2d');
-              
-              video.onplay = () => {
-                  canvas.width = video.videoWidth;
-                  canvas.height = video.videoHeight;
-              };
+    // --- UI State & Configuration ---
+    let mouse = { x: 0, y: 0 };
+    let uiElements = {};
+    let scanlineY = 0;
+    let scanlineSpeed = 0.2;
+    let gridOffset = 0;
 
-              setInterval(processVideoFrame, 100);
-          } catch (err) {
-              alert('Error accessing webcam: ' + err);
-          }
+    // --- Animation & VFX State ---
+    let eegTime = 0;
+    let ekgTime = 0;
+
+    // --- App Data State ---
+    let detectedEmotion = '...';
+    let resultImage = null;
+    let plotImage = null;
+    let modalOpen = false;
+    let permissionHelpVisible = false;
+    let liveFaces = []; // To store face data from the backend
+    let selectedFileName = ''; // To store the name of the selected file
+
+    // --- Color Palette ---
+    const COLORS = {
+      BG: '#03070f',
+      PRIMARY: 'rgba(0, 225, 255, 1)',
+      PRIMARY_GLOW: 'rgba(0, 225, 255, 0.5)',
+      PRIMARY_LIGHT: 'rgba(0, 225, 255, 0.1)',
+      SECONDARY: 'rgba(255, 0, 255, 1)',
+      SECONDARY_GLOW: 'rgba(255, 0, 255, 0.5)',
+      TEXT: '#e0e0e0',
+      PANEL_BG: 'rgba(16, 29, 43, 0.7)'
+    };
+
+    // --- Canvas & UI Setup ---
+    function setupCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        defineUI();
+    }
+
+    function defineUI() {
+      const w = canvas.width;
+      const h = canvas.height;
+      const gap = w * 0.02;
+      const panelWidth = (w - gap * 3) / 3;
+      const panelHeight = h - h * 0.2;
+      const panelY = h * 0.12;
+
+      uiElements = {
+        // --- Panels ---
+        livePanel: { type: 'panel', x: gap, y: panelY, w: panelWidth * 2, h: panelHeight, title: 'LIVE ANALYSIS' },
+        controlPanel: { type: 'panel', x: panelWidth * 2 + gap * 2, y: panelY, w: panelWidth, h: panelHeight, title: 'CONTROLS & ANALYTICS' },
+        // --- Buttons ---
+        startVideo: { type: 'button', x: gap + 30, y: panelY + panelHeight - 80, w: panelWidth - 30, h: 50, text: 'START VIDEO', action: startWebcam },
+        stopVideo: { type: 'button', x: gap + panelWidth + 30, y: panelY + panelHeight - 80, w: panelWidth - 30, h: 50, text: 'STOP VIDEO', action: stopWebcam },
+        chooseImage: { type: 'button', x: panelWidth * 2 + gap * 2 + 30, y: panelY + 100, w: panelWidth - 60, h: 50, text: 'CHOOSE IMAGE', action: () => imageInput.click() },
+        detectEmotionBtn: { type: 'button', x: panelWidth * 2 + gap * 2 + 30, y: panelY + 180, w: panelWidth - 60, h: 50, text: 'DETECT EMOTION', action: detectEmotion },
+        trainingHistory: { type: 'button', x: panelWidth * 2 + gap * 2 + 30, y: h - 230, w: panelWidth - 60, h: 50, text: 'TRAINING HISTORY', action: plotTrainingHistory },
+        confusionMatrix: { type: 'button', x: panelWidth * 2 + gap * 2 + 30, y: h - 160, w: panelWidth - 60, h: 50, text: 'CONFUSION MATRIX', action: plotConfusionMatrix },
+        closeModal: { type: 'button', x: w/2 - 50, y: h * 0.9, w: 100, h: 40, text: 'CLOSE', action: closePlot },
+        openSettings: { type: 'button', x: w/2 - 100, y: h/2 + 40, w: 200, h: 50, text: 'OPEN SETTINGS', action: openCameraSettings },
+      };
+    }
+    
+    // --- Drawing Primitives ---
+    function drawPanel(p) {
+      ctx.strokeStyle = COLORS.PRIMARY;
+      ctx.fillStyle = COLORS.PANEL_BG;
+      ctx.lineWidth = 1;
+      
+      ctx.beginPath();
+      ctx.roundRect(p.x, p.y, p.w, p.h, 10);
+      ctx.stroke();
+      ctx.fill();
+
+      // Draw corner brackets
+      const cornerSize = 20;
+      ctx.strokeStyle = COLORS.PRIMARY;
+      ctx.lineWidth = 2;
+      // Top-left
+      ctx.beginPath();
+      ctx.moveTo(p.x + cornerSize, p.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.lineTo(p.x, p.y + cornerSize);
+      ctx.stroke();
+      // Top-right
+      ctx.beginPath();
+      ctx.moveTo(p.x + p.w - cornerSize, p.y);
+      ctx.lineTo(p.x + p.w, p.y);
+      ctx.lineTo(p.x + p.w, p.y + cornerSize);
+      ctx.stroke();
+      // Bottom-left
+      ctx.beginPath();
+      ctx.moveTo(p.x + cornerSize, p.y + p.h);
+      ctx.lineTo(p.x, p.y + p.h);
+      ctx.lineTo(p.x, p.y + p.h - cornerSize);
+      ctx.stroke();
+      // Bottom-right
+      ctx.beginPath();
+      ctx.moveTo(p.x + p.w - cornerSize, p.y + p.h);
+      ctx.lineTo(p.x + p.w, p.y + p.h);
+      ctx.lineTo(p.x + p.w, p.y + p.h - cornerSize);
+      ctx.stroke();
+
+      ctx.fillStyle = COLORS.TEXT;
+      ctx.font = '16px "Exo 2"';
+      ctx.textAlign = 'left';
+      ctx.fillText(p.title, p.x + 20, p.y + 30);
+      
+      ctx.beginPath();
+      ctx.moveTo(p.x + 20, p.y + 40);
+      ctx.lineTo(p.x + 150, p.y + 40);
+      ctx.strokeStyle = COLORS.PRIMARY_GLOW;
+      ctx.stroke();
+    }
+
+    function drawButton(b) {
+      const isHovered = mouse.x > b.x && mouse.x < b.x + b.w && mouse.y > b.y && mouse.y < b.y + b.h;
+      
+      ctx.save();
+      ctx.strokeStyle = isHovered ? COLORS.SECONDARY : COLORS.PRIMARY;
+      ctx.fillStyle = isHovered ? COLORS.PRIMARY_LIGHT : 'transparent';
+      ctx.lineWidth = 1.5;
+      
+      if (isHovered) {
+          ctx.shadowColor = COLORS.SECONDARY_GLOW;
+          ctx.shadowBlur = 15;
       }
 
-      function stopWebcam() {
-          if (videoStream) {
-              videoStream.getTracks().forEach(track => track.stop());
-              if (ctx) {
-                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
+      ctx.roundRect(b.x, b.y, b.w, b.h, 5);
+      ctx.stroke();
+      ctx.fill();
+
+      ctx.fillStyle = COLORS.TEXT;
+      ctx.font = 'bold 14px "Exo 2"';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowBlur = 0;
+      ctx.fillText(b.text, b.x + b.w / 2, b.y + b.h / 2);
+      ctx.restore();
+    }
+    
+    function drawLiveDetections() {
+        if (!liveFaces || liveFaces.length === 0 || video.readyState < 3) return;
+
+        const p = uiElements.livePanel;
+        const videoX = p.x + 30;
+        const videoY = p.y + 60;
+        const videoW = p.w - 60;
+        const videoH = p.h - 160;
+
+        ctx.save();
+        // The detections are based on the original video, so we must match its mirrored transform
+        ctx.translate(videoX + videoW, videoY);
+        ctx.scale(-1, 1);
+
+        liveFaces.forEach(face => {
+            // Scale face data from original video dimensions to the displayed video dimensions
+            const scaleX = videoW / video.videoWidth;
+            const scaleY = videoH / video.videoHeight;
+            
+            const x = face.x * scaleX;
+            const y = face.y * scaleY;
+            const w = face.w * scaleX;
+            const h = face.h * scaleY;
+
+            // Draw bounding box
+            ctx.strokeStyle = COLORS.PRIMARY;
+            ctx.shadowColor = COLORS.PRIMARY_GLOW;
+            ctx.shadowBlur = 10;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, w, h);
+            ctx.shadowBlur = 0;
+
+            // Draw emotion text
+            ctx.fillStyle = COLORS.PRIMARY;
+            ctx.font = 'bold 18px "Exo 2"';
+
+            // We must un-flip the text so it is readable
+            ctx.save();
+            ctx.translate(x + w / 2, y - 15);
+            ctx.scale(-1, 1); // Flip context back horizontally
+            ctx.textAlign = 'center';
+            ctx.fillText(face.emotion.toUpperCase(), 0, 0);
+            ctx.restore();
+        });
+
+        ctx.restore();
+    }
+
+    // --- VFX & Animations Drawing ---
+    function drawGrid() {
+        const horizon = canvas.height * 0.4;
+        const vanishingPointX = canvas.width / 2;
+        gridOffset = (gridOffset + 0.5) % 50;
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(0, 225, 255, 0.1)';
+        ctx.lineWidth = 1;
+        
+        for (let i = 0; i < 15; i++) {
+            const y = horizon + i * i + gridOffset;
+            if (y > canvas.height) break;
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            ctx.stroke();
+        }
+
+        for (let i = -20; i <= 20; i++) {
+            const dx = (vanishingPointX + i * 20) - vanishingPointX;
+            const length = Math.sqrt(dx*dx + horizon*horizon);
+
+            ctx.beginPath();
+            ctx.moveTo(vanishingPointX + dx/length * horizon, horizon);
+            ctx.lineTo(vanishingPointX + dx/length * canvas.height * 2, canvas.height);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    function drawVFX() {
+      drawGrid();
+      scanlineY = (scanlineY + scanlineSpeed) % 4;
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(0, 255, 255, 0.05)';
+      for (let y = scanlineY; y < canvas.height; y += 4) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawThematicAnimations() {
+        const p = uiElements.controlPanel;
+        const areaWidth = p.w - 80;
+        
+        // --- Draw EEG (Brainwave) ---
+        eegTime += 0.03;
+        const eegY = p.y + 300;
+        ctx.save();
+        ctx.strokeStyle = COLORS.PRIMARY;
+        ctx.shadowColor = COLORS.PRIMARY_GLOW;
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(p.x + 40, eegY);
+        for (let i = 0; i < areaWidth; i++) {
+            const angle = eegTime + i * 0.1;
+            const y = eegY + Math.sin(angle) * 10 + Math.sin(angle * 2.1) * 5 + Math.sin(angle * 0.5) * 8;
+            ctx.lineTo(p.x + 40 + i, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // --- Draw EKG (Heartbeat) ---
+        ekgTime = (ekgTime + 0.02) % 1;
+        const ekgY = p.y + 380;
+        const beatWidth = areaWidth * ekgTime;
+        ctx.save();
+        ctx.strokeStyle = COLORS.SECONDARY;
+        ctx.shadowColor = COLORS.SECONDARY_GLOW;
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(p.x + 40, ekgY);
+        // Flat line
+        ctx.lineTo(p.x + 40 + Math.min(beatWidth, areaWidth * 0.3), ekgY);
+        // P-wave
+        if(ekgTime > 0.3) ctx.lineTo(p.x + 40 + Math.min(beatWidth, areaWidth * 0.35), ekgY - 5);
+        if(ekgTime > 0.35) ctx.lineTo(p.x + 40 + Math.min(beatWidth, areaWidth * 0.4), ekgY);
+        // QRS complex
+        if(ekgTime > 0.4) ctx.lineTo(p.x + 40 + Math.min(beatWidth, areaWidth * 0.45), ekgY + 10);
+        if(ekgTime > 0.45) ctx.lineTo(p.x + 40 + Math.min(beatWidth, areaWidth * 0.5), ekgY - 30);
+        if(ekgTime > 0.5) ctx.lineTo(p.x + 40 + Math.min(beatWidth, areaWidth * 0.55), ekgY + 20);
+        if(ekgTime > 0.55) ctx.lineTo(p.x + 40 + Math.min(beatWidth, areaWidth * 0.6), ekgY);
+        // T-wave
+        if(ekgTime > 0.6) ctx.lineTo(p.x + 40 + Math.min(beatWidth, areaWidth * 0.7), ekgY);
+        if(ekgTime > 0.7) ctx.lineTo(p.x + 40 + Math.min(beatWidth, areaWidth * 0.75), ekgY - 10);
+        if(ekgTime > 0.75) ctx.lineTo(p.x + 40 + Math.min(beatWidth, areaWidth * 0.8), ekgY);
+        // Flat line end
+        if(ekgTime > 0.8) ctx.lineTo(p.x + 40 + beatWidth, ekgY);
+
+        ctx.stroke();
+        ctx.restore();
+    }
+    
+    function drawTitleIcon(x, y, size) {
+        ctx.save();
+        ctx.strokeStyle = COLORS.PRIMARY;
+        ctx.shadowColor = COLORS.PRIMARY_GLOW;
+        ctx.shadowBlur = 15;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y - size * 0.2);
+        ctx.bezierCurveTo(x - size * 0.5, y - size * 0.5, x - size * 0.5, y + size * 0.5, x, y + size * 0.5);
+        ctx.bezierCurveTo(x + size * 0.5, y + size * 0.5, x + size * 0.5, y - size * 0.5, x, y - size * 0.2);
+        ctx.moveTo(x, y - size * 0.2);
+        ctx.lineTo(x, y + size * 0.1);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // --- Main Render Loop ---
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = COLORS.BG;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawVFX();
+      
+      // Draw Title
+      drawTitleIcon(canvas.width / 2 - 280, 55, 20);
+      ctx.fillStyle = COLORS.TEXT;
+      ctx.font = 'bold 36px "Exo 2"';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = COLORS.PRIMARY_GLOW;
+      ctx.shadowBlur = 20;
+      ctx.fillText('EMOTION DETECTION SYSTEM', canvas.width / 2, 60);
+      ctx.shadowBlur = 0;
+      
+      // Title decorations
+      ctx.strokeStyle = COLORS.PRIMARY_GLOW;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2 - 250, 75);
+      ctx.lineTo(canvas.width / 2 + 250, 75);
+      ctx.stroke();
+
+      // Draw UI panels
+      drawPanel(uiElements.livePanel);
+      drawPanel(uiElements.controlPanel);
+      
+      // Draw video feed if active
+      if (video.readyState >= 3) {
+        const p = uiElements.livePanel;
+        const videoX = p.x + 30;
+        const videoY = p.y + 60;
+        const videoW = p.w - 60;
+        const videoH = p.h - 160;
+        ctx.save();
+        ctx.translate(videoX + videoW, videoY);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, videoW, videoH);
+        ctx.restore();
+        // Draw the detections on top of the video
+        drawLiveDetections();
+      }
+
+      drawThematicAnimations();
+
+      // Draw all buttons
+      drawButton(uiElements.startVideo);
+      drawButton(uiElements.stopVideo);
+      drawButton(uiElements.chooseImage);
+      drawButton(uiElements.detectEmotionBtn);
+      drawButton(uiElements.trainingHistory);
+      drawButton(uiElements.confusionMatrix);
+      
+      // Draw selected file name
+      if (selectedFileName) {
+          const p = uiElements.controlPanel;
+          ctx.fillStyle = COLORS.TEXT;
+          ctx.font = 'italic 14px "Exo 2"';
+          ctx.textAlign = 'center';
+          let textToDisplay = selectedFileName;
+          const maxWidth = p.w - 80;
+          if (ctx.measureText(textToDisplay).width > maxWidth) {
+              while (ctx.measureText(textToDisplay + '...').width > maxWidth) {
+                  textToDisplay = textToDisplay.slice(0, -1);
               }
+              textToDisplay += '...';
           }
+          ctx.fillText(textToDisplay, p.x + p.w / 2, uiElements.chooseImage.y + 68);
       }
-
-      async function processVideoFrame() {
-          const video = document.getElementById('video-feed');
-          if (video.srcObject && video.videoWidth > 0) {
-              const tempCanvas = document.createElement('canvas');
-              tempCanvas.width = video.videoWidth;
-              tempCanvas.height = video.videoHeight;
-              tempCanvas.getContext('2d').drawImage(video, 0, 0);
-              const frameData = tempCanvas.toDataURL('image/jpeg');
-
-              fetch('/process_frame', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ frame: frameData })
-              })
-              .then(response => response.json())
-              .then(data => {
-                  if (data.faces) {
-                      ctx.clearRect(0, 0, canvas.width, canvas.height);
-                      data.faces.forEach(face => {
-                          ctx.strokeStyle = '#FF0000';
-                          ctx.lineWidth = 2;
-                          ctx.strokeRect(face.x, face.y, face.w, face.h);
-                          ctx.fillStyle = '#FF0000';
-                          ctx.font = '16px Arial';
-                          ctx.fillText(face.emotion, face.x, face.y - 5);
-                      });
-                  }
-              })
-              .catch(console.error);
+      
+      // Handle Modal/Overlay display
+      if (modalOpen) {
+        ctx.fillStyle = 'rgba(0,0,0,0.8)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const img = plotImage || resultImage;
+        if (img) {
+          const aspect = img.width / img.height;
+          let w = canvas.width * 0.6;
+          let h = w / aspect;
+          if (h > canvas.height * 0.7) {
+            h = canvas.height * 0.7;
+            w = h * aspect;
           }
-      }
-
-      function detectEmotion() {
-          const fileInput = document.getElementById('image-input');
-          const file = fileInput.files[0];
-          if (!file) {
-              return alert('Please select an image');
+          ctx.drawImage(img, canvas.width/2 - w/2, canvas.height/2 - h/2 - 20, w, h);
+          
+          if(resultImage){
+             ctx.fillStyle = COLORS.SECONDARY;
+             ctx.font = 'bold 24px "Exo 2"';
+             ctx.textAlign = 'center';
+             ctx.fillText(`DETECTED: ${detectedEmotion}`, canvas.width/2, canvas.height/2 + h/2 + 20);
           }
-
-          const formData = new FormData();
-          formData.append('file', file);
-
-          fetch('/detect', {
-              method: 'POST',
-              body: formData
-          })
-          .then(response => response.json())
-          .then(data => {
-              if (data.error) return alert(data.error);
-              document.getElementById('result-image').src = `data:image/jpeg;base64,${data.image}`;
-              document.getElementById('result-image').style.display = 'block';
-              document.getElementById('emotion-result').textContent = `Detected Emotion: ${data.emotion}`;
-          })
-          .catch(err => {
-              console.error(err);
-              alert('Detection failed');
-          });
+        }
+        drawButton(uiElements.closeModal);
+      }
+      
+      if (permissionHelpVisible) {
+        ctx.fillStyle = 'rgba(0,0,0,0.8)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = COLORS.SECONDARY;
+        ctx.font = 'bold 20px "Exo 2"';
+        ctx.textAlign = 'center';
+        ctx.fillText('Camera Permission Required', canvas.width/2, canvas.height/2 - 60);
+        ctx.fillStyle = COLORS.TEXT;
+        ctx.font = '16px "Exo 2"';
+        ctx.fillText('Please grant camera access in your browser settings and refresh.', canvas.width/2, canvas.height/2 - 20);
+        drawButton(uiElements.openSettings);
       }
 
-      function plotTrainingHistory() {
-          fetch('/plot_training_history')
-          .then(response => response.json())
-          .then(data => {
-              if (data.error) {
-                  alert(data.error);
-              } else {
-                  document.getElementById('plots').innerHTML = `
-                      <img src="data:image/png;base64,${data.plot}" class="result-image">
-                  `;
-              }
-          });
+      requestAnimationFrame(render);
+    }
+
+    // --- Event Handlers ---
+    window.addEventListener('resize', setupCanvas);
+    canvas.addEventListener('mousemove', (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+
+    canvas.addEventListener('click', (e) => {
+      let clickedElement = null;
+      let checkElements = modalOpen ? {closeModal: uiElements.closeModal} 
+                        : permissionHelpVisible ? {openSettings: uiElements.openSettings}
+                        : uiElements;
+
+      for (const key in checkElements) {
+        const el = checkElements[key];
+        if (el.type === 'button' && mouse.x > el.x && mouse.x < el.x + el.w && mouse.y > el.y && mouse.y < el.y + el.h) {
+          clickedElement = el;
+          break;
+        }
       }
 
-      function plotConfusionMatrix() {
-          fetch('/plot_confusion_matrix')
-          .then(response => response.json())
-          .then(data => {
-              if (data.error) {
-                  alert(data.error);
-              } else {
-                  document.getElementById('plots').innerHTML = `
-                      <img src="data:image/png;base64,${data.plot}" class="result-image">
-                  `;
-              }
-          });
+      if (clickedElement && clickedElement.action) {
+        clickSound.currentTime = 0;
+        clickSound.play().catch(err => console.error("Audio error", err));
+        clickedElement.action();
       }
+    });
+    
+    imageInput.addEventListener('change', () => {
+        if (imageInput.files && imageInput.files.length > 0) {
+            selectedFileName = imageInput.files[0].name;
+        } else {
+            selectedFileName = '';
+        }
+    });
+
+    // --- Initial setup ---
+    setupCanvas();
+    render();
+
+    // --- ORIGINAL BACKEND/LOGIC FUNCTIONS ---
+    let videoStream, animationFrameId, lastFrameTime = 0;
+
+    function handleCameraError(err) {
+        console.error('Camera Error:', err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            permissionHelpVisible = true;
+        } else {
+            alert('An unknown camera error occurred.');
+        }
+    }
+    
+    async function startWebcam() {
+        try {
+            permissionHelpVisible = false;
+            videoStream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+            video.srcObject = videoStream;
+            video.onloadedmetadata = () => {
+                lastFrameTime = performance.now();
+                processVideoFrame();
+            };
+        } catch (err) {
+            handleCameraError(err);
+        }
+    }
+    
+    function stopWebcam() {
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+            video.srcObject = null;
+            cancelAnimationFrame(animationFrameId);
+        }
+    }
+    
+    function processVideoFrame() {
+        const currentTime = performance.now();
+        if (currentTime - lastFrameTime >= 100) {
+            lastFrameTime = currentTime;
+            if (video.srcObject && video.readyState >= 3) {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = video.videoWidth;
+                tempCanvas.height = video.videoHeight;
+                tempCanvas.getContext('2d').drawImage(video, 0, 0);
+                
+                fetch('/process_frame', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ frame: tempCanvas.toDataURL('image/jpeg') })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.faces) {
+                        liveFaces = data.faces;
+                    } else {
+                        liveFaces = [];
+                    }
+                })
+                .catch(err => {
+                    console.error("Error processing frame:", err);
+                    liveFaces = [];
+                });
+            }
+        }
+        animationFrameId = requestAnimationFrame(processVideoFrame);
+    }
+    
+    function detectEmotion() {
+        const file = imageInput.files[0];
+        if (!file) return alert('Please choose an image file first.');
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        fetch('/detect', { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) return alert(data.error);
+            const img = new Image();
+            img.onload = () => {
+                resultImage = img;
+                plotImage = null;
+                detectedEmotion = data.emotion.toUpperCase();
+                modalOpen = true;
+            };
+            img.src = `data:image/jpeg;base64,${data.image}`;
+        })
+        .catch(err => alert('An error occurred: ' + err));
+    }
+    
+    function showPlot(endpoint) {
+        fetch(endpoint)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) return alert(data.error);
+            const img = new Image();
+            img.onload = () => {
+                plotImage = img;
+                resultImage = null;
+                modalOpen = true;
+            };
+            img.src = `data:image/png;base64,${data.plot}`;
+        })
+        .catch(err => alert('Failed to fetch plot: ' + err));
+    }
+
+    function plotTrainingHistory() { showPlot('/plot_training_history'); }
+    function plotConfusionMatrix() { showPlot('/plot_confusion_matrix'); }
+    function closePlot() { modalOpen = false; plotImage = null; resultImage = null; }
+    function openCameraSettings() { alert('Please open your browser\'s site settings (usually via the 🔒 icon in the address bar) to grant camera permission.'); }
+
   </script>
 </body>
 </html>
+
