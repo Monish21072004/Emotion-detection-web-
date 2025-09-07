@@ -1,15 +1,22 @@
+import sys
+import os
 import json
 import base64
-import os
 from io import BytesIO
 import numpy as np
 import cv2
 import pytest
+
+# ---------------------------------------------
+# Ensure root directory is in Python path
+# ---------------------------------------------
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from app import app  # Import the Flask app
 
-# ------------------------------
+# ---------------------------------------------
 # Test Client Setup
-# ------------------------------
+# ---------------------------------------------
 @pytest.fixture
 def client():
     """Create a Flask test client."""
@@ -17,9 +24,9 @@ def client():
         yield client
 
 
-# ------------------------------
+# ---------------------------------------------
 # Helper Function
-# ------------------------------
+# ---------------------------------------------
 def create_dummy_image():
     """Create a dummy 100x100 pixel image and return as byte array."""
     dummy_image = np.zeros((100, 100, 3), dtype=np.uint8)
@@ -27,9 +34,9 @@ def create_dummy_image():
     return encoded_image.tobytes() if success else None
 
 
-# ------------------------------
+# ---------------------------------------------
 # Test Cases
-# ------------------------------
+# ---------------------------------------------
 def test_index_route(client):
     """Test the index route loads successfully."""
     response = client.get('/')
@@ -52,8 +59,12 @@ def test_detect_route_with_file(client):
         'file': (BytesIO(dummy_image_bytes), 'test.jpg')
     }
     response = client.post('/detect', data=data, content_type='multipart/form-data')
-    assert response.status_code in [200, 500]  # 500 if model isn't loaded
-    assert 'image' in response.get_json() or 'error' in response.get_json()
+
+    # If model is loaded correctly -> 200, if not -> 500
+    assert response.status_code in [200, 500]
+
+    json_data = response.get_json()
+    assert 'image' in json_data or 'error' in json_data
 
 
 def test_process_frame_route(client):
@@ -68,13 +79,16 @@ def test_process_frame_route(client):
     }
 
     response = client.post('/process_frame', json=data)
+
+    # If model is missing or error occurs, expect 500
     assert response.status_code in [200, 500]
+
     json_data = response.get_json()
     assert 'faces' in json_data or 'error' in json_data
 
 
 def test_plot_training_history_route(client):
-    """Test /plot_training_history route with a dummy history.json file."""
+    """Test /plot_training_history route with dummy history.json file."""
     dummy_history = {
         "epochs": [
             {"epoch": 1, "accuracy": 0.8, "val_accuracy": 0.75, "loss": 0.5, "val_loss": 0.55},
@@ -86,9 +100,11 @@ def test_plot_training_history_route(client):
         json.dump(dummy_history, f)
 
     response = client.get('/plot_training_history')
-    os.remove('history.json')
+    os.remove('history.json')  # Cleanup
+
     assert response.status_code == 200
-    assert 'plot' in response.get_json()
+    json_data = response.get_json()
+    assert 'plot' in json_data
 
 
 def test_plot_confusion_matrix_route(client):
@@ -102,6 +118,8 @@ def test_plot_confusion_matrix_route(client):
         json.dump(dummy_cm, f)
 
     response = client.get('/plot_confusion_matrix')
-    os.remove('confusion_matrix.json')
+    os.remove('confusion_matrix.json')  # Cleanup
+
     assert response.status_code == 200
-    assert 'plot' in response.get_json()
+    json_data = response.get_json()
+    assert 'plot' in json_data
