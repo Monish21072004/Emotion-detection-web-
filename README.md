@@ -114,7 +114,7 @@ If you want to retrain or improve the model, you would need the original dataset
 ## Requirements
 
 * Python 3.7 or newer
-* All Python dependencies listed in `requirements.txt`
+* All Python dependencies are listed in the `requirements.txt`
 
 ---
 
